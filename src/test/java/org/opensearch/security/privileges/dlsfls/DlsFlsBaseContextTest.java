@@ -26,18 +26,21 @@ import static org.mockito.Mockito.mock;
 public class DlsFlsBaseContextTest {
 
     @Test
-    public void hybridQueryFilterDoesNotMarkReaderLevelDlsAsDone() {
+    public void topLevelQueryFilterDoesNotMarkReaderLevelDlsAsDone() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         DlsFlsBaseContext context = new DlsFlsBaseContext(mock(PrivilegesConfiguration.class), threadContext, mock(AdminDNs.class));
 
-        threadContext.putHeader(ConfigConstants.OPENDISTRO_SECURITY_DLS_QUERY_FILTER_APPLIED, "true");
+        threadContext.putHeader(
+            ConfigConstants.OPENDISTRO_SECURITY_FILTER_LEVEL_DLS_DONE,
+            ConfigConstants.OPENDISTRO_SECURITY_TOP_LEVEL_QUERY_DLS_DONE
+        );
 
         assertThat(context.isDlsQueryFilterApplied(), is(true));
         assertThat(context.isDlsDoneOnFilterLevel(), is(false));
     }
 
     @Test
-    public void filterLevelDlsMarkerDoesNotMarkHybridQueryFilterAsApplied() {
+    public void filterLevelDlsMarkerDoesNotMarkTopLevelQueryFilterAsApplied() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         DlsFlsBaseContext context = new DlsFlsBaseContext(mock(PrivilegesConfiguration.class), threadContext, mock(AdminDNs.class));
 

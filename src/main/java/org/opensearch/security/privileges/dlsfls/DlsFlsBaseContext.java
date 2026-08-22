@@ -64,11 +64,14 @@ public class DlsFlsBaseContext {
     }
 
     public boolean isDlsDoneOnFilterLevel() {
-        return threadContext.getHeader(ConfigConstants.OPENDISTRO_SECURITY_FILTER_LEVEL_DLS_DONE) != null;
+        String dlsDone = threadContext.getHeader(ConfigConstants.OPENDISTRO_SECURITY_FILTER_LEVEL_DLS_DONE);
+        return dlsDone != null && ConfigConstants.OPENDISTRO_SECURITY_TOP_LEVEL_QUERY_DLS_DONE.equals(dlsDone) == false;
     }
 
     public boolean isDlsQueryFilterApplied() {
-        return threadContext.getHeader(ConfigConstants.OPENDISTRO_SECURITY_DLS_QUERY_FILTER_APPLIED) != null;
+        return ConfigConstants.OPENDISTRO_SECURITY_TOP_LEVEL_QUERY_DLS_DONE.equals(
+            threadContext.getHeader(ConfigConstants.OPENDISTRO_SECURITY_FILTER_LEVEL_DLS_DONE)
+        );
     }
 
     /**

@@ -58,61 +58,84 @@ import static org.mockito.Mockito.when;
 public class DlsFlsValveImplTest {
 
     @Test
-    public void appliesDlsFilterToTopLevelHybridQueryInAdaptiveMode() {
-        QueryBuilder hybridQuery = mock(QueryBuilder.class);
-        when(hybridQuery.getName()).thenReturn("hybrid");
-        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(hybridQuery));
+    public void appliesDlsFilterToCapableTopLevelQueryInAdaptiveMode() {
+        QueryBuilder topLevelQuery = mock(QueryBuilder.class);
+        when(topLevelQuery.supportsTopLevelFilter()).thenReturn(true);
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(topLevelQuery));
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, true, false, true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, false, true, true);
 
-        assertThat(result, is(true));
+        assertThat(result, is(DlsFilterApplication.TOP_LEVEL_QUERY));
+    }
+
+    @Test
+    public void queryNameAloneDoesNotEnableTopLevelFiltering() {
+        QueryBuilder query = mock(QueryBuilder.class);
+        when(query.getName()).thenReturn("hybrid");
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(query));
+
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, false, true, true);
+
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
     public void usesFilterLevelDlsForTermLookupQueryInAdaptiveMode() {
-        boolean result = DlsFlsValveImpl.shouldUseFilterLevelDlsInAdaptiveMode(true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(mock(ActionRequest.class), true, true, true, true);
 
-        assertThat(result, is(true));
+        assertThat(result, is(DlsFilterApplication.FILTER_LEVEL));
     }
 
     @Test
-    public void doesNotApplyHybridQueryFilterForTermLookupQuery() {
-        QueryBuilder hybridQuery = mock(QueryBuilder.class);
-        when(hybridQuery.getName()).thenReturn("hybrid");
-        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(hybridQuery));
+    public void termLookupTakesPrecedenceOverTopLevelQueryFiltering() {
+        QueryBuilder topLevelQuery = mock(QueryBuilder.class);
+        when(topLevelQuery.supportsTopLevelFilter()).thenReturn(true);
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(topLevelQuery));
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, true, true, true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, true, true, true);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.FILTER_LEVEL));
     }
 
     @Test
     public void usesLuceneLevelDlsForRegularQueryInAdaptiveMode() {
-        boolean result = DlsFlsValveImpl.shouldUseFilterLevelDlsInAdaptiveMode(true, false);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(
+            mock(ActionRequest.class),
+            true,
+            false,
+            true,
+            true
+        );
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
     public void doesNotUseFilterLevelDlsWithoutDlsRestrictions() {
-        boolean result = DlsFlsValveImpl.shouldUseFilterLevelDlsInAdaptiveMode(false, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(
+            mock(ActionRequest.class),
+            false,
+            true,
+            true,
+            true
+        );
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
-    public void hybridQueryDlsMarkerPreventsValveReentry() throws Exception {
-        assertDlsMarkerPreventsValveReentry(ConfigConstants.OPENDISTRO_SECURITY_DLS_QUERY_FILTER_APPLIED);
+    public void topLevelQueryDlsMarkerPreventsValveReentry() throws Exception {
+        assertDlsMarkerPreventsValveReentry(ConfigConstants.OPENDISTRO_SECURITY_TOP_LEVEL_QUERY_DLS_DONE);
     }
 
     @Test
     public void filterLevelDlsMarkerPreventsValveReentry() throws Exception {
-        assertDlsMarkerPreventsValveReentry(ConfigConstants.OPENDISTRO_SECURITY_FILTER_LEVEL_DLS_DONE);
+        assertDlsMarkerPreventsValveReentry("true");
     }
 
-    private static void assertDlsMarkerPreventsValveReentry(String header) throws Exception {
+    private static void assertDlsMarkerPreventsValveReentry(String headerValue) throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(header, "true");
+        threadContext.putHeader(ConfigConstants.OPENDISTRO_SECURITY_FILTER_LEVEL_DLS_DONE, headerValue);
         threadContext.putTransient(ConfigConstants.OPENDISTRO_SECURITY_USER, new User("test-user"));
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -160,23 +183,23 @@ public class DlsFlsValveImplTest {
 
     @Test
     public void usesLuceneLevelDlsWhenSearchHasNoSourceInAdaptiveMode() {
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(new SearchRequest(), true, false, true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(new SearchRequest(), true, false, true, true);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
     public void usesLuceneLevelDlsWhenSearchSourceHasNoQueryInAdaptiveMode() {
         SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource());
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, true, false, true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, false, true, true);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
     public void usesLuceneLevelDlsForNonSearchRequestInAdaptiveMode() {
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(
             mock(ActionRequest.class),
             true,
             false,
@@ -184,81 +207,81 @@ public class DlsFlsValveImplTest {
             true
         );
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
-    public void doesNotSelectDlsModeForHybridQueryWithoutDlsRestrictions() {
-        QueryBuilder hybridQuery = mock(QueryBuilder.class);
-        when(hybridQuery.getName()).thenReturn("hybrid");
-        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(hybridQuery));
+    public void doesNotSelectDlsModeForCapableQueryWithoutDlsRestrictions() {
+        QueryBuilder topLevelQuery = mock(QueryBuilder.class);
+        when(topLevelQuery.supportsTopLevelFilter()).thenReturn(true);
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(topLevelQuery));
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, false, false, true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, false, false, true, true);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
-    public void doesNotApplyHybridQueryFilterWhenClusterContainsOlderNode() {
-        QueryBuilder hybridQuery = mock(QueryBuilder.class);
-        when(hybridQuery.getName()).thenReturn("hybrid");
-        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(hybridQuery));
+    public void doesNotApplyTopLevelQueryFilterWhenClusterContainsOlderNode() {
+        QueryBuilder topLevelQuery = mock(QueryBuilder.class);
+        when(topLevelQuery.supportsTopLevelFilter()).thenReturn(true);
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(topLevelQuery));
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, true, false, false, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, false, false, true);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
-    public void doesNotApplyHybridQueryFilterForCrossClusterSearch() {
-        QueryBuilder hybridQuery = mock(QueryBuilder.class);
-        when(hybridQuery.getName()).thenReturn("hybrid");
-        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(hybridQuery));
+    public void doesNotApplyTopLevelQueryFilterForCrossClusterSearch() {
+        QueryBuilder topLevelQuery = mock(QueryBuilder.class);
+        when(topLevelQuery.supportsTopLevelFilter()).thenReturn(true);
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(topLevelQuery));
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, true, false, true, false);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, false, true, false);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
-    public void doesNotApplyHybridQueryFilterWhenHybridQueryIsNotTopLevel() {
-        QueryBuilder hybridQuery = mock(QueryBuilder.class);
-        when(hybridQuery.getName()).thenReturn("hybrid");
-        BoolQueryBuilder outerQuery = new BoolQueryBuilder().must(hybridQuery);
+    public void doesNotApplyTopLevelQueryFilterWhenCapableQueryIsNotTopLevel() {
+        QueryBuilder topLevelQuery = mock(QueryBuilder.class);
+        when(topLevelQuery.supportsTopLevelFilter()).thenReturn(true);
+        BoolQueryBuilder outerQuery = new BoolQueryBuilder().must(topLevelQuery);
         SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(outerQuery));
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, true, false, true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, false, true, true);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
-    public void doesNotApplyHybridQueryFilterForParentChildQuery() {
+    public void doesNotApplyTopLevelQueryFilterForParentChildQuery() {
         QueryBuilder parentChildQuery = mock(QueryBuilder.class);
         when(parentChildQuery.getWriteableName()).thenReturn("has_child");
-        QueryBuilder hybridQuery = mock(QueryBuilder.class);
-        when(hybridQuery.getName()).thenReturn("hybrid");
+        QueryBuilder topLevelQuery = mock(QueryBuilder.class);
+        when(topLevelQuery.supportsTopLevelFilter()).thenReturn(true);
         doAnswer(invocation -> {
             QueryBuilderVisitor visitor = invocation.getArgument(0);
             visitor.accept(parentChildQuery);
             return null;
-        }).when(hybridQuery).visit(any(QueryBuilderVisitor.class));
-        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(hybridQuery));
+        }).when(topLevelQuery).visit(any(QueryBuilderVisitor.class));
+        SearchRequest searchRequest = new SearchRequest().source(SearchSourceBuilder.searchSource().query(topLevelQuery));
 
-        boolean result = DlsFlsValveImpl.shouldApplyDlsFilterToHybridQueryInAdaptiveMode(searchRequest, true, false, true, true);
+        DlsFilterApplication result = DlsFlsValveImpl.selectAdaptiveDlsFilterApplication(searchRequest, true, false, true, true);
 
-        assertThat(result, is(false));
+        assertThat(result, is(DlsFilterApplication.NONE));
     }
 
     @Test
-    public void hybridQueryDlsFilterRequiresOpenSearchThreeNineOnEveryNode() {
-        assertThat(DlsFlsValveImpl.isHybridQueryDlsFilterSupported(null), is(false));
-        assertThat(DlsFlsValveImpl.isHybridQueryDlsFilterSupported(Version.V_3_8_0), is(false));
-        assertThat(DlsFlsValveImpl.isHybridQueryDlsFilterSupported(Version.V_3_9_0), is(true));
+    public void topLevelQueryDlsFilterRequiresOpenSearchThreeNineOnEveryNode() {
+        assertThat(DlsFlsValveImpl.isTopLevelQueryDlsFilterSupported(null), is(false));
+        assertThat(DlsFlsValveImpl.isTopLevelQueryDlsFilterSupported(Version.V_3_8_0), is(false));
+        assertThat(DlsFlsValveImpl.isTopLevelQueryDlsFilterSupported(Version.V_3_9_0), is(true));
     }
 
     @Test
-    public void disablesStarTreeBeforeSkippingHybridQueryWrapping() throws Exception {
+    public void disablesStarTreeBeforeSkippingTopLevelQueryWrapping() throws Exception {
         String index = "index";
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);

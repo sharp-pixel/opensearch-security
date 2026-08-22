@@ -19,7 +19,7 @@ public class DlsFlsFilterLeafReaderTest {
     private static final String SEARCH_ACTION = "indices:data/read/search[phase/query]";
 
     @Test
-    public void appliesDlsToReaderWhenHybridQueryFilterWasApplied() {
+    public void appliesDlsToReaderWhenTopLevelQueryFilterWasApplied() {
         assertThat(DlsFlsFilterLeafReader.shouldApplyDlsToReader(false, false, true, SEARCH_ACTION), is(true));
     }
 
