@@ -217,7 +217,7 @@ public class SecurityInterceptor {
                 dlsFlsLegacyHeaders.performHeaderDecoration(connection, request, headerMap);
             }
 
-            if (OpenSearchSecurityPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()
+            if (isCrossClusterSearchEnabled()
                 && clusterInfoHolder.isInitialized()
                 && (action.equals(ClusterSearchShardsAction.NAME) || action.equals(SearchAction.NAME))
                 && !clusterInfoHolder.hasNode(connection.getNode())) {
@@ -233,7 +233,7 @@ public class SecurityInterceptor {
                 headerMap.remove(ConfigConstants.OPENDISTRO_SECURITY_DOC_ALLOWLIST_HEADER);
             }
 
-            if (OpenSearchSecurityPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()
+            if (isCrossClusterSearchEnabled()
                 && clusterInfoHolder.isInitialized()
                 && !action.startsWith("internal:")
                 && !action.equals(ClusterSearchShardsAction.NAME)
@@ -255,7 +255,7 @@ public class SecurityInterceptor {
             }
 
             if (StringUtils.isNotEmpty(injectedRolesValidationString)
-                && OpenSearchSecurityPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()
+                && isCrossClusterSearchEnabled()
                 && !clusterInfoHolder.hasNode(connection.getNode())
                 && getThreadContext().getHeader(ConfigConstants.OPENDISTRO_SECURITY_INJECTED_ROLES_VALIDATION_HEADER) == null) {
                 // Sending roles validation for only cross cluster requests
@@ -286,6 +286,10 @@ public class SecurityInterceptor {
 
             sender.sendRequest(connection, action, request, options, restoringHandler);
         }
+    }
+
+    boolean isCrossClusterSearchEnabled() {
+        return OpenSearchSecurityPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled();
     }
 
     private void ensureCorrectHeaders(
